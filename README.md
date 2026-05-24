@@ -1,95 +1,182 @@
 # Game Backend (C++)
 
-Игровой backend-сервер с REST API, таймерной игровой моделью и сохранением результатов в PostgreSQL.
-Проект реализован как законченный сервис: игрок подключается к карте, управляет персонажем, получает очки за игровой процесс, а после периода бездействия автоматически выбывает из сессии с записью результата в таблицу рекордов.
+Игровой backend-сервер на C++20 с REST API, таймерной игровой моделью и хранением результатов в PostgreSQL.
 
-## Возможности
+Игрок подключается к игровой карте, управляет персонажем, получает очки за игровой процесс, а после периода бездействия автоматически завершает игровую сессию с сохранением результата в таблицу рекордов.
 
-- HTTP API для игрового цикла:
-  - вход в игру;
-  - получение состояния сессии;
-  - управление движением;
-  - игровой тик;
-  - получение таблицы рекордов.
-- Модель карты с дорогами, ограничением перемещения и подбором предметов.
-- Начисление очков за игровой прогресс.
-- Автоматический retirement игроков по времени неактивности (`dogRetirementTime`).
-- Персистентное хранение retired-результатов в PostgreSQL.
-- Пагинация таблицы рекордов через `start` и `maxItems`.
+## Ключевые возможности
 
-## Технологии
+### REST API игрового цикла
 
-- C++20
-- Boost (`asio`, `beast`, `json`, `program_options`, `log`)
-- PostgreSQL + `libpqxx`
-- CMake + Conan
-- Docker
+* подключение игрока;
+* получение состояния игры;
+* управление движением;
+* игровые тики;
+* получение таблицы рекордов.
+
+### Игровая модель
+
+* карты и дороги;
+* ограничение перемещения;
+* генерация предметов;
+* начисление очков.
+
+### Работа с данными
+
+* хранение результатов в PostgreSQL;
+* пул соединений;
+* пагинация таблицы рекордов.
+
+### Надёжность
+
+* автоматическое завершение неактивных игроков (`dogRetirementTime`);
+* сериализация и восстановление состояния сервера.
+
+---
+
+## Стек
+
+### Язык
+
+* C++20
+
+### Сетевое взаимодействие
+
+* Boost.Asio
+* Boost.Beast
+* Boost.JSON
+* Boost.Log
+
+### Работа с данными
+
+* PostgreSQL
+* libpqxx
+
+### Сборка и инфраструктура
+
+* CMake
+* Conan
+* Docker
+
+### Тестирование
+
+* Catch2
+
+---
 
 ## Архитектура
 
-- `src/main.cpp` — точка входа, загрузка конфигурации, запуск HTTP-сервера, инициализация БД.
-- `src/application.*` — бизнес-логика игры: игроки, тики, retirement, сценарии использования.
-- `src/model.*` — доменная модель: карты, дороги, сессии, персонажи, лут, движение.
-- `src/api_handler.h` — HTTP API, валидация запросов и формирование JSON-ответов.
-- `src/request_handler.*` / `src/http_server.*` — транспортный слой (Beast/Asio).
-- `src/retirement_db.*` / `src/connection_pool.h` — persistence и пул соединений с PostgreSQL.
-- `src/serializing_listener.*` — сериализация и восстановление состояния сервера.
+Проект реализован в виде многослойной архитектуры:
 
-## Локальная сборка и запуск
+```text
+HTTP Request
+       ↓
+API Layer
+(api_handler)
 
-Требования:
+       ↓
+Application Layer
+(игровые сценарии)
 
-- CMake >= 3.11
-- Conan 1.x
-- компилятор с поддержкой C++20
+       ↓
+Domain Layer
+(карты, игроки, лут, игровая логика)
 
-Сборка:
+       ↓
+Persistence Layer
+(PostgreSQL + connection pool)
+```
+
+Основные компоненты:
+
+* `application.*` — бизнес-логика игровых сценариев;
+* `model.*` — доменная модель: карты, игроки, движение, предметы;
+* `api_handler.*` — обработка HTTP API;
+* `request_handler.*`, `http_server.*` — транспортный слой;
+* `retirement_db.*`, `connection_pool.h` — работа с PostgreSQL;
+* `serializing_listener.*` — сериализация и восстановление состояния.
+
+---
+
+## Сборка
+
+### Требования
+
+* CMake >= 3.11
+* Conan 1.x
+* Компилятор с поддержкой C++20
+
+### Build
 
 ```bash
 mkdir build
 cd build
-conan install .. --build=missing -s build_type=Release -s compiler.libcxx=libstdc++11
+
+conan install .. --build=missing \
+-s build_type=Release \
+-s compiler.libcxx=libstdc++11
+
 cmake -DCMAKE_BUILD_TYPE=Release ..
 cmake --build .
 ```
 
-Запуск:
+---
+
+## Запуск
 
 ```bash
 ./game_server -c ../data/config.json -w ../static
 ```
 
-Запуск с PostgreSQL:
+### Запуск с PostgreSQL
 
 ```bash
 export GAME_DB_URL="postgres://user:password@host:5432/dbname"
+
 ./game_server -c ../data/config.json -w ../static
 ```
 
+---
+
 ## Docker
 
-Сборка:
+### Build
 
 ```bash
 docker build -t game-backend .
 ```
 
-Запуск:
+### Run
 
 ```bash
 docker run --rm -p 8080:8080 \
-  -e GAME_DB_URL="postgres://user:password@host:5432/dbname" \
-  game-backend
+-e GAME_DB_URL="postgres://user:password@host:5432/dbname" \
+game-backend
 ```
 
-## Примеры API
+---
 
-- `POST /api/v1/game/join`
-- `GET /api/v1/game/state` (Bearer token)
-- `POST /api/v1/game/player/action` (Bearer token)
-- `POST /api/v1/game/tick`
-- `GET /api/v1/game/records?start=0&maxItems=100`
+## API
 
-## Итог
+| Method | Endpoint                                    | Description                |
+| ------ | ------------------------------------------- | -------------------------- |
+| POST   | `/api/v1/game/join`                         | Подключение игрока         |
+| GET    | `/api/v1/game/state`                        | Получение состояния игры   |
+| POST   | `/api/v1/game/player/action`                | Действия игрока            |
+| POST   | `/api/v1/game/tick`                         | Игровой тик                |
+| GET    | `/api/v1/game/records?start=0&maxItems=100` | Получение таблицы рекордов |
 
-Это полноценный backend-движок аркадной игры с прозрачной архитектурой, корректной обработкой игрового времени, безопасной работой с API и персистентной таблицей рекордов.
+---
+
+## Особенности реализации
+
+* REST API с Bearer-авторизацией;
+* игровая модель с таймерной логикой;
+* автоматический retirement игроков;
+* хранение результатов в PostgreSQL;
+* пул соединений с БД;
+* пагинация рекордов;
+* сериализация состояния сервера;
+* модульная многослойная архитектура.
+
+---
